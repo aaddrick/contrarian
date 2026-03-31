@@ -1,0 +1,238 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.5in, top=0.4in, bottom=0.55in, footskip=0.2in]{geometry}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage{fontspec}
+\usepackage{microtype}
+\usepackage[most]{tcolorbox}
+\usepackage{multicol}
+\usepackage{tikz}
+
+% Font setup — Noto Sans (modern sans-serif with full weight/style coverage)
+\setmainfont{NotoSans}[
+  Extension = .ttf,
+  Path = /usr/share/fonts/google-noto/,
+  UprightFont = *-Regular,
+  BoldFont = *-Bold,
+  ItalicFont = *-Italic,
+  BoldItalicFont = *-BoldItalic,
+]
+
+% Colors — palette with WCAG-fixed severity colors
+\definecolor{accent}{HTML}{2D3748}
+\definecolor{critical}{HTML}{A82424}    % darkened from C53030 — ~5.8:1 on white
+\definecolor{major}{HTML}{8B3A1A}       % darkened from C05621 — ~5.5:1 on white
+\definecolor{minor}{HTML}{1E5A99}       % darkened from 2B6CB0 — ~5.2:1 on white
+\definecolor{ruleline}{HTML}{A0AEC0}
+\definecolor{lightbg}{HTML}{F7FAFC}
+\definecolor{sectioncolor}{HTML}{1A202C}
+\definecolor{stepbg}{HTML}{EDF2F7}
+\definecolor{prembg}{HTML}{FFF5F0}      % warm tint for pre-mortem highlight
+\definecolor{labelbg}{HTML}{E2E8F0}
+
+% Section formatting — partial rule (35% width)
+\titleformat{\section}{\fontsize{13}{15}\selectfont\bfseries\color{sectioncolor}}{}{0em}{}[{\color{ruleline}\rule{0.35\textwidth}{0.6pt}}]
+\titleformat{\subsection}{\fontsize{11.5}{13}\selectfont\bfseries\color{accent}}{}{0em}{}
+\titlespacing*{\section}{0pt}{12pt}{6pt}
+\titlespacing*{\subsection}{0pt}{4pt}{3pt}
+
+% List spacing
+\setlist{nosep, leftmargin=1.2em}
+\setlist[itemize]{label=\textcolor{accent}{\textbullet}}
+
+% Footer with version/author, no page numbers
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[R]{\fontsize{7.5}{9}\selectfont\color{ruleline} v1 --- Aaddrick Williams}
+
+% For measuring card heights to compute stagger
+\newsavebox{\firstcardbox}
+\newsavebox{\secondcardbox}
+\newlength{\cardgap}
+\setlength{\cardgap}{10pt}
+\newlength{\staggeroffset}
+
+% Step card box style
+\newtcolorbox{stepcard}[1][]{%
+  enhanced,
+  boxrule=0pt,
+  colback=stepbg,
+  colframe=stepbg,
+  arc=2pt,
+  left=8pt, right=8pt, top=7pt, bottom=7pt,
+  before upper={\raggedright\hyphenpenalty=10000 \exhyphenpenalty=10000},
+  #1
+}
+
+% Pre-mortem card (highlighted)
+\newtcolorbox{premcard}{%
+  enhanced,
+  boxrule=0pt,
+  colback=prembg,
+  colframe=prembg,
+  arc=2pt,
+  left=8pt, right=8pt, top=7pt, bottom=7pt,
+  before upper={\raggedright\hyphenpenalty=10000 \exhyphenpenalty=10000},
+  borderline west={2.5pt}{0pt}{major}
+}
+
+% Verdict pill
+\newtcbox{\verdict}[1][accent]{%
+  on line,
+  arc=4pt,
+  colback=#1!10,
+  colframe=#1!40,
+  boxrule=0.4pt,
+  left=5pt, right=5pt, top=2pt, bottom=2pt,
+  fontupper=\small\bfseries\color{#1},
+  boxsep=0pt
+}
+
+\begin{document}
+
+\begin{center}
+{\fontsize{18}{20}\selectfont\bfseries\color{sectioncolor} The Helpful Contrarian}\\[4pt]
+{\fontsize{10.5}{13}\selectfont\color{accent} Desk Reference --- Stress-Test Plans Before Reality Does}
+\end{center}
+
+\vspace{2pt}
+\noindent
+\begin{tcolorbox}[
+  enhanced,
+  boxrule=0pt,
+  colback=lightbg,
+  colframe=lightbg,
+  arc=0pt,
+  left=8pt, right=8pt, top=4pt, bottom=4pt,
+  borderline west={3pt}{0pt}{accent}
+]
+\centering\itshape
+When everyone agrees, assume the consensus is wrong and investigate what that world looks like.\\
+Every critique must include a concrete alternative.
+\end{tcolorbox}
+
+\section{The Process}
+
+% Measure cards to compute stagger: card2 center aligns with gap between card1 and card3
+% offset = height(card1) + gap/2 - height(card2)/2
+\savebox{\firstcardbox}{\begin{minipage}{0.48\textwidth}%
+\begin{stepcard}
+{\bfseries\color{sectioncolor}1\enspace Steel-Man First}\\[2pt]
+Restate the proposal fairly \textbf{before} critiquing.
+List what's genuinely strong. Critiquing without understanding is straw-manning.
+\end{stepcard}
+\end{minipage}}%
+\savebox{\secondcardbox}{\begin{minipage}{0.48\textwidth}%
+\begin{stepcard}
+{\bfseries\color{sectioncolor}2\enspace Audit Assumptions}\\[2pt]
+List every unstated assumption. Rate each: \textbf{likelihood wrong} vs.\ \textbf{impact if wrong}.
+Focus on high-impact and uncertain. Ignore the rest.
+\end{stepcard}
+\end{minipage}}%
+\setlength{\staggeroffset}{\dimexpr(\ht\firstcardbox + \dp\firstcardbox) + \cardgap/2 - (\ht\secondcardbox + \dp\secondcardbox)/2\relax}
+
+\vspace{2pt}
+\noindent
+\begin{minipage}[t]{0.48\textwidth}
+\usebox{\firstcardbox}%
+\vspace{\cardgap}%
+\begin{premcard}
+{\bfseries\color{sectioncolor}3\enspace Pre-Mortem\enspace\textcolor{major}{\small(core)}}\\[2pt]
+``It failed. Why?''
+What assumption broke first? What early warning signs were missed? What cascaded?
+\end{premcard}%
+\vspace{\cardgap}%
+\begin{stepcard}
+{\bfseries\color{sectioncolor}5\enspace Second-Order Effects}\\[2pt]
+What happens \textit{after} what happens?
+Who else is affected that wasn't considered? What does this make harder in 6 months?
+\end{stepcard}
+\end{minipage}%
+\hfill
+\raisebox{-\staggeroffset}[0pt][0pt]{\begin{minipage}[t]{0.48\textwidth}
+\usebox{\secondcardbox}%
+\vspace{\cardgap}%
+\begin{stepcard}
+{\bfseries\color{sectioncolor}4\enspace Invert Key Decisions}\\[2pt]
+What if we did the \textbf{opposite}? What if we did \textbf{nothing}?
+Not every inversion is viable. The point is exposing hidden constraints.
+\end{stepcard}
+\end{minipage}}
+
+\section{Findings Format}
+
+\vspace{-1pt}
+\noindent
+\begin{minipage}[t]{0.52\textwidth}
+\noindent
+\textbf{\textcolor{critical}{Critical}} / \textbf{\textcolor{major}{Major}} / \textbf{\textcolor{minor}{Minor}} --- one-line summary
+
+\begin{itemize}
+\item \textbf{Assumption challenged} --- what belief is at risk
+\item \textbf{Failure scenario} --- concrete way this breaks
+\item \textbf{Recommendation} --- what to do instead
+\end{itemize}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.44\textwidth}
+\noindent\textbf{Verdict:}\\[4pt]
+\verdict[accent]{Sound with caveats}\\[4pt]
+\verdict[major]{Needs rework}\\[4pt]
+\verdict[critical]{Investigate first}
+\end{minipage}
+
+\begin{multicols}{2}
+
+\section{Anti-Patterns}
+
+{\small\renewcommand{\arraystretch}{1.3}%
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\color{sectioncolor}}l X@{}}
+No empty objections & Reasoning \textit{and} an alternative \\
+No vague doom & Name the specific failure \\
+No straw-manning & Attack what was \textit{actually} proposed \\
+No reverse bias & Always disagreeing = also biased \\
+Label certainty & ``will break'' vs.\ ``might break if\ldots'' \\
+Target the plan & Not the person \\
+\end{tabularx}
+}
+
+\columnbreak
+
+\section{Calibrate to Stakes}
+
+{\small\renewcommand{\arraystretch}{1.35}%
+\begin{tabularx}{\linewidth}{@{}l l X@{}}
+\toprule
+\textbf{Stakes} & \textbf{Examples} & \textbf{Depth} \\
+\midrule
+Low & Reversible, minor & Blind spots only \\
+Medium & Significant effort & Full assumption audit \\
+High & Architecture, security & Exhaustive + pre-mortem \\
+\bottomrule
+\end{tabularx}
+}
+
+\end{multicols}
+
+\vspace{4pt}
+\noindent
+\begin{tcolorbox}[
+  enhanced,
+  boxrule=0pt,
+  colback=stepbg,
+  colframe=stepbg,
+  arc=2pt,
+  left=8pt, right=8pt, top=5pt, bottom=5pt,
+]
+\centering\small\color{accent}\itshape
+Core loop: Understand it \(\to\) Find assumptions \(\to\) Imagine it failed \(\to\) Ask ``what if the opposite?'' \(\to\) Trace ripple effects
+\end{tcolorbox}
+
+\end{document}
