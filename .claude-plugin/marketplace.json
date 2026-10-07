@@ -1,0 +1,24 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
+  "name": "contrarian",
+  "description": "Devil's advocate that stress-tests a plan before you commit to it.",
+  "owner": {
+    "name": "aaddrick",
+    "url": "https://github.com/aaddrick"
+  },
+  "plugins": [
+    {
+      "name": "contrarian",
+      "description": "Steel-mans the proposal, audits its assumptions, runs a pre-mortem and inversion, and returns severity-rated findings with a failure scenario and a recommendation for each, plus a verdict. Ships as a skill, and as a subagent where the harness supports plugin agents.",
+      "source": "./",
+      "category": "development",
+      "keywords": [
+        "devils-advocate",
+        "pre-mortem",
+        "decision-making",
+        "architecture-review",
+        "risk"
+      ]
+    }
+  ]
+}

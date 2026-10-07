@@ -1,0 +1,17 @@
+{
+  "name": "contrarian",
+  "owner": {
+    "name": "aaddrick"
+  },
+  "metadata": {
+    "description": "Devil's advocate for coding agents. Stress-tests plans, architecture and decisions with a steel-man, an assumption audit, a pre-mortem and inversion, then gives severity-rated findings and a verdict."
+  },
+  "plugins": [
+    {
+      "name": "contrarian",
+      "source": "./",
+      "description": "Devil's advocate for coding agents. Stress-tests plans, architecture and decisions with a steel-man, an assumption audit, a pre-mortem and inversion, then gives severity-rated findings and a verdict.",
+      "category": "development"
+    }
+  ]
+}

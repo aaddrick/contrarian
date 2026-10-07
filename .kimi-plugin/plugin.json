@@ -1,0 +1,27 @@
+{
+  "name": "contrarian",
+  "version": "1.1.0",
+  "description": "Devil's advocate for coding agents. Stress-tests plans, architecture and decisions with a steel-man, an assumption audit, a pre-mortem and inversion, then gives severity-rated findings and a verdict.",
+  "author": {
+    "name": "aaddrick",
+    "url": "https://github.com/aaddrick"
+  },
+  "homepage": "https://github.com/aaddrick/contrarian",
+  "license": "Unlicense",
+  "keywords": [
+    "devils-advocate",
+    "pre-mortem",
+    "decision-making",
+    "architecture-review",
+    "risk",
+    "agent-skill"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Contrarian",
+    "shortDescription": "Devil's advocate that stress-tests a plan before you commit to it.",
+    "longDescription": "Stress-test a proposal before reality does. The contrarian steel-mans the plan first, audits its unstated assumptions by likelihood and impact, runs a pre-mortem and inversion, traces second-order effects, and returns severity-rated findings that each carry a failure scenario and a recommendation, then a verdict. Scales its depth to the stakes. Not a code reviewer.",
+    "developerName": "aaddrick",
+    "websiteURL": "https://github.com/aaddrick/contrarian"
+  }
+}

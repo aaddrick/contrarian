@@ -1,0 +1,416 @@
+name: plugin loads
+
+# Installs the plugin from this checkout into a scratch config for each harness
+# and fails if that harness does not find the skill. Catches load-layer breakage
+# that JSON validation misses, such as a skills path that points at nothing, or
+# one harness's file confusing another's installer.
+on:
+  pull_request:
+    paths:
+      - .claude-plugin/**
+      - .codex-plugin/**
+      - .cursor-plugin/**
+      - .devin-plugin/**
+      - .github/plugin/**
+      - .grok-plugin/**
+      - .hermes-plugin/**
+      - .kimi-plugin/**
+      - .muse-plugin/**
+      - .opencode/**
+      - gemini-extension.json
+      - package.json
+      - plugin.json
+      - skills/**
+      - .claude/agents/**
+      - .github/workflows/plugin-load-check.yml
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-load-${{ github.ref }}
+  cancel-in-progress: true
+
+# CLI versions are pinned where the installer allows it, so a CLI release breaks
+# this workflow on the commit that bumps the pin, not on an unrelated pull request.
+env:
+  CLAUDE_CODE_VERSION: "2.1.288"
+
+jobs:
+  claude-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Claude Code
+        run: npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
+      # Validating the repo root checks only marketplace.json.
+      - name: Manifests pass the official validator
+        run: |
+          claude plugin validate "$GITHUB_WORKSPACE" --strict
+          claude plugin validate "$GITHUB_WORKSPACE/.claude-plugin/plugin.json" --strict
+      - name: Install into a scratch config and find the skill and the agent
+        run: |
+          export CLAUDE_CONFIG_DIR="$RUNNER_TEMP/claude-scratch"
+          mkdir -p "$CLAUDE_CONFIG_DIR"
+          claude plugin marketplace add "$GITHUB_WORKSPACE"
+          claude plugin install contrarian@contrarian
+          claude plugin list --json | python3 -c '
+          import json, os, sys
+          wanted = "contrarian@contrarian"
+          hit = [p for p in json.load(sys.stdin) if p.get("id") == wanted and p.get("enabled")]
+          if not hit:
+              print(f"::error::{wanted} did not install and enable"); sys.exit(1)
+          skill = os.path.join(hit[0]["installPath"], "skills/contrarian/SKILL.md")
+          if "name: contrarian" not in open(skill).read().split("---")[1]:
+              print(f"::error::{skill} missing or misnamed"); sys.exit(1)
+          agent = os.path.join(hit[0]["installPath"], ".claude/agents/contrarian.md")
+          if "name: contrarian" not in open(agent).read().split("---")[1]:
+              print(f"::error::{agent} missing or misnamed"); sys.exit(1)
+          print(f"{wanted} enabled, skill at {skill}, agent at {agent}")'
+
+  codex:
+    runs-on: ubuntu-latest
+    env:
+      CODEX_VERSION: "0.157.0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Codex CLI
+        run: npm install -g "@openai/codex@$CODEX_VERSION"
+      - name: Install into a scratch home and find the skill in the prompt
+        run: |
+          export CODEX_HOME="$RUNNER_TEMP/codex-scratch"
+          mkdir -p "$CODEX_HOME"
+          codex plugin marketplace add "$GITHUB_WORKSPACE"
+          codex plugin add contrarian@contrarian
+          codex plugin list --json | python3 -c '
+          import json, sys
+          wanted = "contrarian@contrarian"
+          data = json.load(sys.stdin)
+          if not any(p.get("pluginId") == wanted and p.get("enabled") for p in data.get("installed", [])):
+              print(f"::error::{wanted} did not install and enable"); sys.exit(1)
+          print(f"{wanted} enabled")'
+          codex debug prompt-input "hi" | grep -q "contrarian:contrarian: Use when" || {
+            echo "::error::Codex did not put the skill in the model prompt"; exit 1; }
+
+  antigravity-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Google's installer takes no version: it always fetches the latest agy
+      # build and checks it against the release manifest's SHA-512.
+      - name: Install Antigravity CLI into a scratch home
+        run: |
+          echo "HOME=$RUNNER_TEMP/agy-home" >> "$GITHUB_ENV"
+          export HOME="$RUNNER_TEMP/agy-home"
+          mkdir -p "$HOME"
+          curl -fsSL https://antigravity.google/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Validate, install, and find the skill intact
+        run: |
+          agy --version
+          agy plugin validate "$GITHUB_WORKSPACE"
+          agy plugin install "$GITHUB_WORKSPACE"
+          agy plugin list | tee "$RUNNER_TEMP/plugins.txt"
+          grep -q '"contrarian"' "$RUNNER_TEMP/plugins.txt" || {
+            echo "::error::Antigravity CLI did not install the plugin"; exit 1; }
+          found=$(find "$HOME/.gemini" -path "*/plugins/contrarian/skills/contrarian/SKILL.md" | head -1)
+          grep -q "^name: contrarian$" "$found" 2>/dev/null || {
+            echo "::error::Antigravity CLI did not install the skill"; exit 1; }
+
+  copilot-cli:
+    runs-on: ubuntu-latest
+    env:
+      COPILOT_CLI_VERSION: "1.0.91"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Copilot CLI
+        run: npm install -g "@github/copilot@$COPILOT_CLI_VERSION"
+      - name: Install into a scratch config and find the skill
+        run: |
+          export COPILOT_HOME="$RUNNER_TEMP/copilot-scratch"
+          mkdir -p "$COPILOT_HOME"
+          copilot plugin marketplace add "$GITHUB_WORKSPACE"
+          copilot plugin install contrarian@contrarian
+          # Run outside the checkout so the plugin is the only source of the skill.
+          cd "$RUNNER_TEMP"
+          copilot skill list --json | python3 -c '
+          import json, sys
+          skills = json.load(sys.stdin)
+          if not any(s.get("name") == "contrarian" and s.get("source") == "plugin" and s.get("enabled") for s in skills):
+              print("::error::Copilot CLI did not load the skill"); sys.exit(1)
+          print("contrarian loaded")'
+
+  factory-droid:
+    runs-on: ubuntu-latest
+    env:
+      DROID_VERSION: "0.233.0"
+    steps:
+      - uses: actions/checkout@v4
+      # The direct download skips the install script, which pkills running
+      # droids. x64-baseline does not need AVX2 on the runner.
+      - name: Install Droid
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          u="https://downloads.factory.ai/factory-cli/releases/$DROID_VERSION/linux/x64-baseline/droid"
+          curl -fsSL -o "$RUNNER_TEMP/bin/droid" "$u"
+          echo "$(curl -fsSL "$u.sha256")  $RUNNER_TEMP/bin/droid" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/bin/droid"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      # `droid exec` needs an API key, so this checks the installed files.
+      - name: Install into a scratch home and find the skill
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/droid-home"; mkdir -p "$HOME"
+          droid plugin marketplace add "$GITHUB_WORKSPACE"
+          droid plugin install contrarian@contrarian --scope user
+          droid plugin list --scope user | grep -q 'contrarian@contrarian'
+          path=$(jq -r '.entry.installPath' "$HOME"/.factory/plugins/installed_plugins/contrarian-*.json)
+          grep -q '^name: contrarian$' "$path/skills/contrarian/SKILL.md" || {
+            echo "::error::Droid did not install the skill"; exit 1; }
+
+  grok:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Grok Build CLI
+        run: |
+          curl -fsSL https://x.ai/cli/install.sh | bash -s 1.0.46
+          echo "$HOME/.grok/bin" >> "$GITHUB_PATH"
+      - name: Validate, install, and find the skill
+        run: |
+          grok plugin validate "$GITHUB_WORKSPACE"
+          grok plugin install "$GITHUB_WORKSPACE" --trust
+          cd "$(mktemp -d)"
+          grok inspect --json > inspect.json
+          python3 - <<'PY'
+          import json, pathlib, sys
+          skills = {s["name"]: s for s in json.load(open("inspect.json"))["skills"]}
+          s = skills.get("contrarian")
+          if not s or s["source"].get("plugin_name") != "contrarian":
+              print(f"::error::Grok did not load the skill: {sorted(skills)}"); sys.exit(1)
+          if "name: contrarian" not in pathlib.Path(s["source"]["path"]).read_text():
+              print("::error::Grok loaded an empty or misnamed SKILL.md"); sys.exit(1)
+          print("ok")
+          PY
+
+  gemini-cli:
+    runs-on: ubuntu-latest
+    env:
+      GEMINI_CLI_VERSION: "0.62.0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Gemini CLI
+        run: npm install -g "@google/gemini-cli@$GEMINI_CLI_VERSION"
+      # `extensions validate` passes even with skills/ deleted, so the
+      # skills list is the check that matters.
+      - name: Validate, install into a scratch home, and find the skill
+        run: |
+          export HOME="$RUNNER_TEMP/gemini-home"
+          mkdir -p "$HOME" && cd "$HOME"
+          gemini extensions validate "$GITHUB_WORKSPACE"
+          GEMINI_CLI_TRUST_WORKSPACE=true gemini extensions install "$GITHUB_WORKSPACE" --consent </dev/null
+          gemini skills list </dev/null 2>/dev/null | tee "$RUNNER_TEMP/skills.txt"
+          grep -q '^contrarian \[Enabled\]' "$RUNNER_TEMP/skills.txt" || {
+            echo "::error::Gemini CLI did not load the skill"; exit 1; }
+
+  kimi-code:
+    runs-on: ubuntu-latest
+    env:
+      KIMI_CODE_VERSION: "2.1.1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Kimi Code
+        run: npm install -g "@moonshot-ai/kimi-code@$KIMI_CODE_VERSION"
+      # Kimi has no plugin subcommand, so this drives the local server API:
+      # install from the checkout, then read a workspace's skill catalog.
+      - name: Install into a scratch home and find the skill
+        run: |
+          export KIMI_CODE_HOME="$RUNNER_TEMP/kimi-home" HOME="$RUNNER_TEMP/kimi-user"
+          mkdir -p "$KIMI_CODE_HOME" "$HOME" "$RUNNER_TEMP/kimi-ws"
+          kimi --version
+          kimi web --no-open --port 58627 > "$RUNNER_TEMP/kimi-web.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:58627/api/v1/healthz >/dev/null && break
+            sleep 1
+          done
+          TOKEN=$(cat "$KIMI_CODE_HOME/server.token")
+          api() { curl -sf -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$@"; }
+          api -X POST -d "{\"source\":\"$GITHUB_WORKSPACE\"}" \
+            http://127.0.0.1:58627/api/v1/plugins > "$RUNNER_TEMP/install.json"
+          WS=$(api -X POST -d "{\"root\":\"$RUNNER_TEMP/kimi-ws\"}" \
+            http://127.0.0.1:58627/api/v1/workspaces \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["id"])')
+          api "http://127.0.0.1:58627/api/v1/workspaces/$WS/skills" > "$RUNNER_TEMP/skills.json"
+          kill %1
+          python3 - "$RUNNER_TEMP/install.json" "$RUNNER_TEMP/skills.json" <<'PY'
+          import json, sys
+          plugin = json.load(open(sys.argv[1]))["data"]
+          skills = json.load(open(sys.argv[2]))["data"]["skills"]
+          name = "contrarian"
+          if plugin.get("id") != name or plugin.get("state") != "ok" or not plugin.get("enabled"):
+              print(f"::error::Kimi Code did not install and enable {name}"); sys.exit(1)
+          if plugin.get("diagnostics"):
+              print(f"::error::Kimi Code manifest diagnostics: {plugin['diagnostics']}"); sys.exit(1)
+          if not any(s["name"] == name and s["path"].endswith(f"/skills/{name}/SKILL.md") for s in skills):
+              print(f"::error::Kimi Code does not see the {name} skill"); sys.exit(1)
+          print(f"{name} installed, enabled, and in the skill catalog")
+          PY
+
+  opencode:
+    runs-on: ubuntu-latest
+    env:
+      OPENCODE_VERSION: "1.18.34"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenCode
+        run: npm install -g "opencode-ai@$OPENCODE_VERSION"
+      - name: Link the skill into a scratch config and load it with the skill tool
+        run: |
+          export HOME="$RUNNER_TEMP/opencode-home"
+          export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share" XDG_CACHE_HOME="$HOME/.cache" XDG_STATE_HOME="$HOME/.local/state"
+          mkdir -p "$XDG_CONFIG_HOME/opencode/skills" "$HOME/work"
+          ln -s "$GITHUB_WORKSPACE/skills/contrarian" "$XDG_CONFIG_HOME/opencode/skills/contrarian"
+          cd "$HOME/work"
+          opencode debug skill > skills.json
+          opencode debug agent build --tool skill --params '{"name":"contrarian"}' > load.json
+          python3 - <<'PY'
+          import json, sys
+          skills = {s["name"]: s for s in json.load(open("skills.json"))}
+          if not skills.get("contrarian", {}).get("content", "").strip():
+              print("::error::OpenCode did not discover the skill"); sys.exit(1)
+          r = json.load(open("load.json"))["result"]
+          if r.get("title") != "Loaded skill: contrarian":
+              print("::error::OpenCode's skill tool did not load the skill"); sys.exit(1)
+          print(r["title"])
+          PY
+
+  pi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Pi
+        run: npm install -g @earendil-works/pi-coding-agent@1.0.0
+      - name: Install into a scratch home and find the skill
+        run: |
+          export HOME="$RUNNER_TEMP/pi-home"; mkdir -p "$HOME" "$RUNNER_TEMP/pi-work"
+          cd "$RUNNER_TEMP/pi-work"
+          pi install "$GITHUB_WORKSPACE"
+          pi list
+          out=$(echo '{"type":"get_commands"}' | timeout 60 pi --mode rpc --offline)
+          echo "$out" | grep -q '"name":"skill:contrarian"' || {
+            echo "::error::Pi did not load the skill"; exit 1; }
+
+  devin-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # `devin plugins install` needs a signed-in account, so CI checks the
+      # manifest and that Devin's own parser loads the skill.
+      - name: Install Devin CLI into a scratch dir
+        run: |
+          V=3000.11.3
+          SHA=83b3b113c01bf2a3e9e100db08d77e6b086806a7754f091e20831bdfe215157e
+          curl -fsSL "https://static.devin.ai/cli/$V/devin-$V-x86_64-unknown-linux.tar.gz" -o "$RUNNER_TEMP/devin.tgz"
+          echo "$SHA  $RUNNER_TEMP/devin.tgz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/devin" && tar xzf "$RUNNER_TEMP/devin.tgz" -C "$RUNNER_TEMP/devin"
+          "$RUNNER_TEMP/devin/bin/devin" --version
+      - name: Devin parses the skill
+        env:
+          HOME: ${{ runner.temp }}/home
+          XDG_CONFIG_HOME: ${{ runner.temp }}/home/.config
+          XDG_DATA_HOME: ${{ runner.temp }}/home/.local/share
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/proj"; mkdir -p "$P/.devin/skills" "$HOME"
+          cp -r skills/contrarian "$P/.devin/skills/"
+          cd "$P"
+          "$RUNNER_TEMP/devin/bin/devin" skills show contrarian </dev/null | grep -q 'Triggers: user, model' || {
+            echo "::error::Devin did not parse the skill"; exit 1; }
+
+  muse-code:
+    runs-on: ubuntu-latest
+    env:
+      MUSE_NO_AUTO_UPDATE: "1"
+      MUSE_EXPERIMENTAL_PLUGINS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      # The installer takes no version: it always fetches the current stable build.
+      - name: Install Muse Code
+        run: |
+          curl -fsSL https://dev.meta.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Validate, install, and find the skill both ways
+        run: |
+          muse --version
+          muse plugins validate . --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["valid"], d'
+          muse skills validate skills/contrarian --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["valid"], d'
+          muse plugins marketplace add contrarian "$PWD"
+          muse plugins install contrarian@contrarian
+          muse skills list --source plugin | grep -q '^plugin:contrarian:contrarian'
+          muse skills install skills/contrarian --scope user
+          muse skills list --source user | grep -q '^contrarian'
+
+
+  qwen-code:
+    runs-on: ubuntu-latest
+    env:
+      QWEN_CODE_VERSION: "0.24.7"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # The `:contrarian` suffix picks the plugin from the
+      # marketplace; without it Qwen stops at an interactive prompt.
+      - name: Install into a scratch home and find the skill
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/qwen-home"; mkdir -p "$HOME"
+          npx -y "@qwen-code/qwen-code@$QWEN_CODE_VERSION" extensions install "$GITHUB_WORKSPACE:contrarian" --consent < /dev/null
+          out=$(npx -y "@qwen-code/qwen-code@$QWEN_CODE_VERSION" extensions list 2>&1); echo "$out"
+          echo "$out" | grep -q '✓ contrarian'
+          echo "$out" | grep -A1 '^ *Skills:' | grep -qx '  contrarian'
+          n=$(ls "$HOME/.qwen/extensions/contrarian/skills/contrarian"/*.md | wc -l)
+          test "$n" -eq "$(ls "$GITHUB_WORKSPACE/skills/contrarian"/*.md | wc -l)"
+
+  hermes-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      # Hermes does not build a wheel, so this installs a pinned commit editable.
+      - name: Install Hermes Agent
+        run: |
+          git clone --filter=blob:none https://github.com/NousResearch/hermes-agent.git "$RUNNER_TEMP/hermes"
+          git -C "$RUNNER_TEMP/hermes" checkout c8301ea6c9b797184df16a9c5dd462400b264ff4
+          uv venv -p 3.14 "$RUNNER_TEMP/hvenv"
+          uv pip install -p "$RUNNER_TEMP/hvenv/bin/python" -e "$RUNNER_TEMP/hermes"
+      # Hermes reads the root plugin.json as an Agent Plugins manifest, the
+      # same file Antigravity reads. Its skill name carries a hash prefix.
+      - name: Load the plugin and find the skill
+        run: |
+          PY="$RUNNER_TEMP/hvenv/bin/python"
+          export HERMES_HOME="$RUNNER_TEMP/hermes-home"
+          mkdir -p "$HERMES_HOME/plugins"
+          cp -a "$GITHUB_WORKSPACE" "$HERMES_HOME/plugins/contrarian"
+          "$PY" -m hermes_cli.main plugins doctor "$GITHUB_WORKSPACE" --ci
+          "$PY" -m hermes_cli.main plugins enable contrarian
+          "$PY" - <<'PY'
+          import json, sys
+          from tools.skills_tool import skills_list, skill_view
+          names = [s["name"] for s in json.loads(skills_list())["skills"]]
+          q = next((n for n in names if n.endswith(":contrarian")), None)
+          if not q:
+              print(f"::error::Hermes did not list the skill: {names}"); sys.exit(1)
+          r = json.loads(skill_view(q))
+          if not (r.get("success") and "name: contrarian" in r["content"]):
+              print(f"::error::Hermes did not load the skill: {r}"); sys.exit(1)
+          print("OK:", q)
+          PY

@@ -1,0 +1,33 @@
+name: checks
+
+# Cheap gates for what a reviewer cannot see: a malformed manifest, manifests
+# whose versions drifted apart, a skill frontmatter or file reference that
+# broke, and the muse.ai installer.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Manifests, versions, skill frontmatter, file references
+        run: python3 scripts/check_configs.py
+
+      - name: Tests
+        run: python3 -m unittest discover -s tests -v

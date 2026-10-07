@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "name": "contrarian",
+  "displayName": "Contrarian",
+  "version": "1.1.0",
+  "description": "Devil's advocate for coding agents. Stress-tests plans, architecture and decisions with a steel-man, an assumption audit, a pre-mortem and inversion, then gives severity-rated findings and a verdict.",
+  "compat": {
+    "source": "native",
+    "manifestDir": ".muse-plugin"
+  },
+  "capabilities": {
+    "skills": [
+      {
+        "id": "contrarian",
+        "path": "skills/contrarian/SKILL.md"
+      }
+    ],
+    "commands": [],
+    "hooks": [],
+    "mcpServers": [],
+    "reminders": []
+  }
+}
