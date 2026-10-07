@@ -56,4 +56,4 @@ The `plugin loads` workflow installs the plugin into a scratch config for each h
 
 ## Social preview
 
-`scripts/make_card.py` renders `.github/assets/social-preview.png` with Pillow, in the poster's palette and fonts. GitHub reads the preview only from **Settings > General > Social preview**, so upload the new PNG there by hand after you regenerate it.
+`scripts/make_card.py` draws `.github/assets/social-preview.png` and `.github/assets/icon.png` (and the SVGs they render from) with Inkscape. GitHub reads the preview only from **Settings > General > Social preview**, so upload the new PNG there by hand after you regenerate it.

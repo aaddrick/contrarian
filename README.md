@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/assets/social-preview.png" alt="The Helpful Contrarian" width="640">
+  <img src=".github/assets/social-preview.png" alt="Contrarian" width="640">
 </p>
 
 <p align="center">
@@ -480,7 +480,6 @@ The rules it holds itself to: name a concrete failure mode, no vague doom, no st
 |---|---|
 | `.claude/agents/contrarian.md` | The subagent. This is the source text. |
 | `skills/contrarian/SKILL.md` | The skill: a one-line note on running it in a subagent, then the agent's text word for word |
-| `poster/the-helpful-contrarian.pdf` | A one-page desk reference ([source](poster/the-helpful-contrarian.tex)) |
 
 `scripts/check_configs.py` fails if the skill and the agent drift apart.
 
